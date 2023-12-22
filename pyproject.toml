@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "llm-deploy"
+version = "0.1.0"
+description = "Tool to deploy LLM on vast.ai with ollama"
+authors = ["g1ibby"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+beautifulsoup4 = "4.12.2"
+certifi = "2023.11.17"
+charset-normalizer = "3.3.2"
+click = "8.1.7"
+idna = "3.4"
+prettytable = "3.9.0"
+pyyaml = "6.0.1"
+requests = "2.31.0"
+soupsieve = "2.5"
+typer = "0.9.0"
+typing-extensions = "4.8.0"
+urllib3 = "2.1.0"
+wcwidth = "0.2.12"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
