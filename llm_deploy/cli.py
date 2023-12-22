@@ -1,8 +1,8 @@
 import typer
-from app_logic import AppLogic
-from config import load_config
-from ollama import retrieve_model_size
-from utils import print_offer_table, print_instances_table, print_models
+from llm_deploy.app_logic import AppLogic
+from llm_deploy.config import load_config
+from llm_deploy.ollama import retrieve_model_size
+from llm_deploy.utils import print_offer_table, print_instances_table, print_models
 from enum import Enum
 
 app = typer.Typer()
@@ -129,6 +129,6 @@ def logs(id: int = typer.Argument(..., help="Instance ID"), max_logs: int = type
 
 app.add_typer(model_app, name="model")
 
-if __name__ == "__main__":
+def main():
     app()
 

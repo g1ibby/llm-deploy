@@ -1,7 +1,7 @@
 import requests
 import time
 import re
-from interfaces import VastAIInterface
+from llm_deploy.interfaces import VastAIInterface
 
 class VastAI(VastAIInterface):
     def __init__(self, api_key):

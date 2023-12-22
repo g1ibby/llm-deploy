@@ -1,9 +1,9 @@
-from vastai import VastAI
+from llm_deploy.vastai import VastAI
 import time
-from ollama import OllamaInstance
-from utils import print_pull_status
-from storage_manager import StorageManager
-from litellm import LiteLLManager
+from llm_deploy.ollama import OllamaInstance
+from llm_deploy.utils import print_pull_status
+from llm_deploy.storage_manager import StorageManager
+from llm_deploy.litellm import LiteLLManager
 
 class AppLogic:
     def __init__(self, vast_api_key):
