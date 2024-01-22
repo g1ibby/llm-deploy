@@ -22,6 +22,7 @@ class LiteLLManager:
         count = 1
 
         for model in self.config_data['model_list']:
+            print(model)
             if model['model_name'].startswith(base_model_name):
                 if model['litellm_params']['api_base'] == api_base:
                     # Model with same identifier and api_base exists, do nothing

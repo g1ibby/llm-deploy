@@ -30,7 +30,7 @@ class VastAI(VastAIInterface):
             min_gpu=1, 
             max_gpu=2, 
             disk_space=40, 
-            internet_speed=70, 
+            internet_speed=100, 
             result_count=10, 
             public_ip=True
          ):

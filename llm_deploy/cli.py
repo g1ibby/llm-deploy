@@ -40,6 +40,10 @@ def select_offer(gpu_memory: float, disk_space: float, public_ip: bool = True):
     return chosen_offer
 
 @app.command()
+def apply():
+    appl.apply_llms_config()
+
+@app.command()
 def run(model: str = typer.Argument(..., help="Model name"),
         gpu_memory: float = typer.Option(0.0, "--gpu-memory", help="GPU memory in GB"),
         disk: float = typer.Option(70.0, "--disk", help="Disk space in GB"),
@@ -50,7 +54,7 @@ def run(model: str = typer.Argument(..., help="Model name"),
             print("Failed to retrieve model size.")
             return
         gpu_memory = model_size
-    typer.echo(f"Running the model: {model} with {gpu_memory} GB of GPU memory. Disk space{disk} GB. Access: {access}")
+    typer.echo(f"Running the model: {model} with {gpu_memory} GB of GPU memory. Disk space: {disk} GB. Access: {access}")
 
     chosen_offer = select_offer(gpu_memory=gpu_memory, disk_space=disk, public_ip=access == ChoiceAccess.IP)
     if not chosen_offer:

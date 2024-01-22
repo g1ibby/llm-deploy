@@ -4,6 +4,8 @@ from llm_deploy.ollama import OllamaInstance
 from llm_deploy.utils import print_pull_status
 from llm_deploy.storage_manager import StorageManager
 from llm_deploy.litellm import LiteLLManager
+from llm_deploy.llms_config import LLMsConfig
+from llm_deploy.model_allocator import ModelAllocator
 
 class AppLogic:
     def __init__(self, vast_api_key):
@@ -13,6 +15,32 @@ class AppLogic:
         self.vast_api_key = vast_api_key
         self.vast = VastAI(vast_api_key)
         self.storage = StorageManager()
+        self.llms_config = LLMsConfig()
+
+    def apply_llms_config(self):
+        """
+        Apply the LLMs configuration.
+        """
+        model_allocator = ModelAllocator(self.vast, self.llms_config)
+        allocated_models, machines = model_allocator.allocate_models()
+        print("Allocated Models:")
+        print(allocated_models)
+        print("Machines:")
+        print(machines)
+
+        # creating instances
+        for machine_id, models in allocated_models.items():
+            instance_id, _ = self.create_instance(machine_id, 70, True)
+            if not instance_id:
+                print("Failed to create instance.")
+                return None
+            # will pull models for this instance 
+            for model in models:
+                if not self.pull_model(model['model'], instance_id):
+                    print("Failed to pull model.")
+                    return None
+
+        return None
 
     def get_offers(self, gpu_memory, disk_space, public_ip=True):
         """
@@ -90,15 +118,7 @@ class AppLogic:
             return None
         return cloudflared_addr
 
-    def run_model(self, model, offer_id, disk_space, public_ip=True):
-        """
-        Run a specified model with given GPU memory.
-        :param model: Model name
-        :offer_id: Offer ID
-        :param disk_space: Disk space in GB
-        :public_ip: Whether to use public IP or not
-        :return: Result of the model run
-        """
+    def create_instance(self, offer_id, disk_space, public_ip=True):
         # Create an instance
         image = "g1ibby/ollama-cloudflared:latest"
         ports = []
@@ -114,15 +134,18 @@ class AppLogic:
             print("Instance with ollama creation failed.")
             print("Destroying instance...")
             self.vast.destroy_instance(instance_id)
-            return False
+            return None
+
         print(f"Instance Status: {chosen_instance['actual_status']}")
 
-        ollama_addr = ""
-        if not public_ip:
-            ollama_addr = self.cloudflared(instance_id)
-        else:
-            ollama_addr = self.get_instance_address(chosen_instance)
-        
+        # Get Ollama address
+        ollama_addr = self.cloudflared(instance_id) if not public_ip else self.get_instance_address(chosen_instance)
+        if not ollama_addr:
+            print("Failed to retrieve Ollama address.")
+            self.vast.destroy_instance(instance_id)
+            return None
+
+        # Save instance details
         self.storage.save_instance(instance_id, {"ollama_addr": ollama_addr})
         print(f"Ollama address: {ollama_addr}")
 
@@ -138,41 +161,53 @@ class AppLogic:
                 break
             else:
                 print("Waiting for Ollama server to start...")
-                time.sleep(10)  # Wait for 10 seconds before checking again
+                time.sleep(10)
                 print(f"Retrying to get Ollama server status... (Attempt {attempt + 1}/10)")
 
         if not ollama_running:
             print("Ollama server did not reach the 'running' status after 10 attempts.")
             print("Destroying instance...")
             self.vast.destroy_instance(instance_id)
-            return False
+            return None
+
         print("Ollama Server Status: Running")
+        return instance_id, ollama_addr
 
-        # Pull a model and print updates
-        model_pull_generator = ollama_instance.pull_model(model)
-        print_pull_status(model_pull_generator)
+    def run_model(self, model, offer_id, disk_space, public_ip=True):
+        """
+        Run a specified model with given GPU memory.
+        :param model: Model name
+        :offer_id: Offer ID
+        :param disk_space: Disk space in GB
+        :public_ip: Whether to use public IP or not
+        :return: Result of the model run
+        """
+        # Create an instance and prepare it
+        instance_id, ollama_addr = self.create_instance(offer_id, disk_space, public_ip)
+        if not instance_id:
+            return False
 
-        # Use the models method to get a list of local models
-        litellm_instance = LiteLLManager()
-        print("Models:")
-        local_models = ollama_instance.models()
-        for model in local_models:
-            print(model["name"])
-            litellm_instance.add_model(model["name"], ollama_addr)
+        # Pull the model using the existing pull_model function
+        if not self.pull_model(model, instance_id):
+            print("Failed to pull model.")
+            self.vast.destroy_instance(instance_id)
+            return False
 
         # Test a model and print responses
-        print(f"Testing model: {local_models[0]['name']}")
-        test_result = ollama_instance.test_model(local_models[0]["name"])
+        ollama_instance = OllamaInstance(ollama_addr)
+        print(f"Testing model: {model}")
+        test_result = ollama_instance.test_model(model)
         print(f"Test Result: {test_result}")
         return test_result
 
-    def pull_model(self, model_name, instance_id):
+    def pull_model(self, model_name: str, instance_id: int):
         """
         Pull a model from the Ollama server.
         :param model_name: Model name
         :param instance_id: Instance ID
         :return: Pull status
         """
+        print(f"Pulling model: {model_name}")
         # Get the instance address
         instance = self.get_instance_by_id(instance_id)
         if not instance:
@@ -193,7 +228,7 @@ class AppLogic:
 
         return True
 
-    def remove_model(self, model_name, instance_id):
+    def remove_model(self, model_name: str, instance_id: int):
         """
         Remove a model from the Ollama server.
         :param model_name: Model name
@@ -244,7 +279,7 @@ class AppLogic:
             instance['ollama_addr'] = storage_instance.get('ollama_addr', '')
         return instances
 
-    def get_instance_by_id(self, instance_id):
+    def get_instance_by_id(self, instance_id: int):
         """
         Retrieve a specific instance by its ID.
         :param instance_id: Instance ID
