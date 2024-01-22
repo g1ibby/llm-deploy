@@ -17,13 +17,6 @@ class ChoiceAccess(str, Enum):
     CF = "cf"
     IP = "ip"
 
-@app.command()
-def offers(gpu_memory: float = typer.Option(1.0, help="GPU memory in GB")):
-    # Call business logic function to handle this command
-    offers = appl.get_offers(gpu_memory)
-    # Assume you have a utility function to print offers
-    print_offer_table(offers)
-
 def select_offer(gpu_memory: float, disk_space: float, public_ip: bool = True):
     offers = appl.get_offers(gpu_memory, disk_space, public_ip)
     print_offer_table(offers)
@@ -39,11 +32,15 @@ def select_offer(gpu_memory: float, disk_space: float, public_ip: bool = True):
     print_offer_table([chosen_offer])
     return chosen_offer
 
-@app.command()
+@app.command(help="Applies LLMs configuration based on llms.yaml file")
 def apply():
     appl.apply_llms_config()
 
-@app.command()
+@app.command(help="Destroys LLMs configuration based on state.json file")
+def destory():
+    appl.destroy()
+
+@app.command(help="Runs a model with specified parameters like GPU memory, disk space, and access type.")
 def run(model: str = typer.Argument(..., help="Model name"),
         gpu_memory: float = typer.Option(0.0, "--gpu-memory", help="GPU memory in GB"),
         disk: float = typer.Option(70.0, "--disk", help="Disk space in GB"),
@@ -66,27 +63,12 @@ def run(model: str = typer.Argument(..., help="Model name"),
     else:
         print("Failed to run model.")
 
-@app.command()
+@app.command(help="Lists all current instances.")
 def ls():
     instances = appl.instances()
     print_instances_table(instances)
 
-@model_app.command()
-def pull(model_name: str = typer.Argument(..., help="Model name"),
-         instance_id: int = typer.Argument(..., help="Instance ID")):
-    appl.pull_model(model_name, instance_id)
-
-@model_app.command(name="rm")
-def rm_model(model_name: str = typer.Argument(..., help="Model name"),
-             instance_id: int = typer.Argument(..., help="Instance ID")):
-    appl.remove_model(model_name, instance_id)
-
-@model_app.command(name="ls")
-def ls_models():
-    models = appl.models()
-    print_models(models)
-
-@app.command()
+@app.command(help="Removes an instance by the given ID.")
 def rm(id: int = typer.Argument(..., help="Instance ID")):
     chosen_instance = appl.get_instance_by_id(id)
     if chosen_instance:
@@ -98,7 +80,7 @@ def rm(id: int = typer.Argument(..., help="Instance ID")):
 
     appl.destroy_instance(chosen_instance['id'])
 
-@app.command()
+@app.command(help="Shows details of an instance by the given ID.")
 def show(id: int = typer.Argument(..., help="Instance ID")):
     chosen_instance = appl.get_instance_by_id(id)
     if chosen_instance:
@@ -122,7 +104,7 @@ def show(id: int = typer.Argument(..., help="Instance ID")):
             else:
                 print(f"{name}, Size: Unknown")
 
-@app.command()
+@app.command(help="Retrieves and displays logs for a specified instance ID.")
 def logs(id: int = typer.Argument(..., help="Instance ID"), max_logs: int = typer.Option(30, help="Maximum number of logs to retrieve")):
     instance_logs = appl.get_instance_logs(id, max_logs=max_logs)
     if not instance_logs:
@@ -131,7 +113,23 @@ def logs(id: int = typer.Argument(..., help="Instance ID"), max_logs: int = type
     for log in instance_logs:
         print(log)
 
-app.add_typer(model_app, name="model")
+@model_app.command(help="Pulls a specified model to a given instance ID.")
+def pull(model_name: str = typer.Argument(..., help="Model name"),
+         instance_id: int = typer.Argument(..., help="Instance ID")):
+    appl.pull_model(model_name, instance_id)
+
+@model_app.command(name="rm", help="Removes a specified model from a given instance ID.")
+def rm_model(model_name: str = typer.Argument(..., help="Model name"),
+             instance_id: int = typer.Argument(..., help="Instance ID")):
+    appl.remove_model(model_name, instance_id)
+
+@model_app.command(name="ls", help="Lists all models on all instances.")
+def ls_models():
+    models = appl.models()
+    print_models(models)
+
+
+app.add_typer(model_app, name="model", help="Manages model operations like pulling, listing, and removing models.")
 
 def main():
     app()

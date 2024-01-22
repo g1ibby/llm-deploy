@@ -42,6 +42,14 @@ class AppLogic:
 
         return None
 
+    def destroy(self):
+        """
+        Destroy all the instances based on state.json file.
+        """
+        instances = self.instances()
+        for instance in instances:
+            self.destroy_instance(instance['id'])
+
     def get_offers(self, gpu_memory, disk_space, public_ip=True):
         """
         Retrieve offers based on the specified GPU memory.
