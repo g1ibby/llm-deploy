@@ -54,7 +54,9 @@ class ModelAllocator:
             model_name = model['model']
             print(f"Retrieving size for model: {model_name}")
             model_size = retrieve_model_size(model_name)
-            model['size'] = model_size
+            model_size_mb = model_size * 1024  # Convert GB to MB
+
+            model['size'] = model_size_mb
 
         # Sorts models by priority (high first) and size (larger first)
         return sorted(models, key=lambda x: (-PRIORITY_MAP[x['priority']], -x['size']))

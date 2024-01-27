@@ -25,6 +25,10 @@ wcwidth = "0.2.12"
 [tool.poetry.scripts]
 llm-deploy = "llm_deploy.cli:main"
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.4"
+mock = "^5.1.0"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
