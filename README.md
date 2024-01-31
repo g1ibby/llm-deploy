@@ -1,15 +1,51 @@
-# LLM deploy
+### LLM deploy - tool to manage your LLMs on vast.ai servers
 
-## Overview
+#### Introduction
+"llm-deploy" is a Python tool for deploying and managing large language models (LLMs) on vast.ai using ollama. It uses Typer for command-line interactions.
 
-This Python tool provides a command-line interface for managing and interacting with models and instances in the Ollama environment. It leverages the Typer library for building the CLI and implements functionalities like listing, pulling, running, and removing models, as well as managing instances.
+#### Requirements
+- Python 3.11 or later
+- Poetry for dependency management
 
-## Features
+#### Installation
+1. Clone the repository or download the source code.
+2. Navigate to the project directory.
+3. Run `poetry install` to install dependencies.
 
-- **List Offers**: View available offers based on GPU memory.
-- **Run Models**: Run a specific model with configurable GPU memory and disk space options.
-- **List Instances**: Display currently running instances.
-- **Model Management**: Pull and remove specific models from an instance.
-- **Instance Management**: Create, remove, and display details of instances.
-- **Logs Retrieval**: Fetch logs for a specific instance.
+#### Configuration
+Create a `llms.yaml` file with your model configurations, like this:
+```yaml
+models:
+  llama:
+    model: "g1ibby/miqu:70b"
+    priority: low
+```
+
+#### Usage
+
+Apply LLMs Configuration: poetry run llm-deploy apply
+    Applies configurations from llms.yaml.
+
+Destroy LLMs Configuration: poetry run llm-deploy destroy
+    Destroys configurations based on state.json.
+
+Run a Model: poetry run llm-deploy run <model_name> --gpu-memory <memory_in_GB> --disk <disk_space_in_GB> --access <cf/ip>
+    Runs a model with specified parameters.
+
+List Current Instances: poetry run llm-deploy ls
+    Lists all current instances.
+
+Remove an Instance: poetry run llm-deploy rm <instance_id>
+    Removes an instance by ID.
+
+Show Instance Details: poetry run llm-deploy show <instance_id>
+    Shows details of an instance by ID.
+
+Retrieve Logs for an Instance: poetry run llm-deploy logs <instance_id> --max-logs <number>
+    Retrieves and displays logs for a specified instance.
+
+Model Operations:
+    Pull a model: poetry run llm-deploy model pull <model_name> <instance_id>
+    Remove a model: poetry run llm-deploy model rm <model_name> <instance_id>
+    List models: poetry run llm-deploy model ls
 
