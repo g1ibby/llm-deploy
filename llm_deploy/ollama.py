@@ -64,8 +64,13 @@ class OllamaInstance(OllamaInstanceInterface):
         return last_response_done
 
 def retrieve_model_size(full_model_name):
-    base_model_name = full_model_name.split(':')[0]
-    url = f"https://ollama.ai/library/{base_model_name}/tags"
+    # Check for the presence of '/' to determine the format
+    if '/' in full_model_name:
+        base_path = full_model_name.split(':')[0]  # For models donwloaded on a personal account
+    else:
+        base_path = "library/" + full_model_name.split(':')[0]  # For models downloaded on the library
+
+    url = f"https://ollama.ai/{base_path}/tags"
     html_content = _download_html(url)
     model_list = _extract_models(html_content)
     return _get_model_size(model_list, full_model_name)

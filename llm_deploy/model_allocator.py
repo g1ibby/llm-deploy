@@ -61,7 +61,7 @@ class ModelAllocator:
         # Sorts models by priority (high first) and size (larger first)
         return sorted(models, key=lambda x: (-PRIORITY_MAP[x['priority']], -x['size']))
 
-    def get_available_offers(self, gpu_memory, min_gpu=1, max_gpu=2, disk_space=40, internet_speed=100, result_count=10, public_ip=True):
+    def get_available_offers(self, gpu_memory, min_gpu=1, max_gpu=2, disk_space=40, internet_speed=200, result_count=10, public_ip=True):
         # Your existing implementation
         # Make sure to update self.gpu_ram_cache with the gpu_totalram of each machine
         machines = self.vast.get_available_offers(gpu_memory, min_gpu, max_gpu, disk_space, internet_speed, result_count, public_ip)

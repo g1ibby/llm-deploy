@@ -23,14 +23,13 @@ class AppLogic:
         """
         model_allocator = ModelAllocator(self.vast, self.llms_config)
         allocated_models, machines = model_allocator.allocate_models()
-        print("Allocated Models:")
-        print(allocated_models)
-        print("Machines:")
-        print(machines)
+        self.log_machine_details(allocated_models, machines)
 
+        models_size = self._calculate_models_size(allocated_models)
         # creating instances
         for machine_id, models in allocated_models.items():
-            instance_id, _ = self.create_instance(machine_id, 70, True)
+            machine_disk_space = (models_size[machine_id] + 5000) / 1024
+            instance_id, _ = self.create_instance(machine_id, machine_disk_space, True)
             if not instance_id:
                 print("Failed to create instance.")
                 return None
@@ -41,6 +40,32 @@ class AppLogic:
                     return None
 
         return None
+
+    def log_machine_details(self, allocated_models, machines):
+        print("Machine Details and Allocated Models\n")
+        for machine_id, models in allocated_models.items():
+            machine = machines[machine_id]
+            print(f"Machine ID: {machine_id}")
+            print(f"Price (per hour): ${machine['dph_total']}")
+            print(f"GPU: {machine['gpu_name']} | Count: {machine['num_gpus']} | Memory: {machine['gpu_ram']} MB per GPU, Total: {machine['gpu_totalram']} MB")
+            print(f"Internet Speed: Up {machine['inet_up']} Mbps / Down {machine['inet_down']} Mbps")
+            print("Allocated Models:")
+            for model in models:
+                print(f"  - Name: {model['name']}, Model: {model['model']}, Size: {model['size']} MB")
+            print("\n" + "-"*50 + "\n")
+
+    def _calculate_models_size(self, models_dict):
+        # Dictionary to hold the total size of models for each key
+        total_sizes = {}
+        
+        # Iterate through each key and its list of models in the dictionary
+        for key, models in models_dict.items():
+            # Calculate the sum of sizes for the current list of models
+            total_size = sum(model['size'] for model in models)
+            # Assign the total size to the corresponding key in the result dictionary
+            total_sizes[key] = total_size
+        
+        return total_sizes
 
     def destroy(self):
         """

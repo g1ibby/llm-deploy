@@ -37,7 +37,7 @@ def apply():
     appl.apply_llms_config()
 
 @app.command(help="Destroys LLMs configuration based on state.json file")
-def destory():
+def destroy():
     appl.destroy()
 
 @app.command(help="Runs a model with specified parameters like GPU memory, disk space, and access type.")
