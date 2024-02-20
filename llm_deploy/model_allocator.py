@@ -63,10 +63,11 @@ class ModelAllocator:
 
     def get_available_offers(self, gpu_memory, min_gpu=1, max_gpu=2, disk_space=40, internet_speed=200, result_count=10, public_ip=True):
         # Your existing implementation
-        # Make sure to update self.gpu_ram_cache with the gpu_totalram of each machine
+        # Make sure to update self.gpu_ram_cache with the gpu_total_ram of each machine
         machines = self.vast.get_available_offers(gpu_memory, min_gpu, max_gpu, disk_space, internet_speed, result_count, public_ip)
         for machine in machines:
-            self.gpu_ram_cache[machine['id']] = machine['gpu_totalram']
+            print(machine)
+            self.gpu_ram_cache[machine['id']] = machine['gpu_total_ram']
         return machines
 
     def allocate_models(self):
@@ -124,6 +125,6 @@ class ModelAllocator:
         if machine_id in self.available_space:
             self.available_space[machine_id] -= (model['size'] + ModelAllocator.MODEL_RAM_OVERHEAD)
         else:
-            # Use the cached gpu_totalram for the new machine
+            # Use the cached gpu_total_ram for the new machine
             self.available_space[machine_id] = self.gpu_ram_cache[machine_id] - (model['size'] + ModelAllocator.MODEL_RAM_OVERHEAD)
 

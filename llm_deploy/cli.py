@@ -11,7 +11,7 @@ model_app = typer.Typer()
 config = load_config()
 
 # Initialize the business logic with necessary services
-appl = AppLogic(config['VAST_API_KEY'])
+appl = AppLogic(config['VAST_API_KEY'], config['LITELLM_API_URL'])
 
 class ChoiceAccess(str, Enum):
     CF = "cf"
@@ -45,6 +45,7 @@ def run(model: str = typer.Argument(..., help="Model name"),
         gpu_memory: float = typer.Option(0.0, "--gpu-memory", help="GPU memory in GB"),
         disk: float = typer.Option(70.0, "--disk", help="Disk space in GB"),
         access: ChoiceAccess = typer.Option(ChoiceAccess.IP, help="Choose either Cloudflared or IP access")):
+    print("Running the model with the following parameters:")
     if gpu_memory == 0.0:
         model_size = retrieve_model_size(model)
         if model_size is None:

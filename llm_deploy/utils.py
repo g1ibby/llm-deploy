@@ -46,13 +46,13 @@ def print_offer_table(offers):
         if num_gpus != 'N/A' and num_gpus > 1:
             gpu_info = f"{num_gpus}x{gpu_info}"
 
-        gpu_totalram = format_ram(offer.get('gpu_totalram'))
+        gpu_total_ram = format_ram(offer.get('gpu_total_ram'))
         cpu_info = f"{offer.get('cpu_name', 'N/A')} / {format_ram(offer.get('cpu_ram'))}"
         total_flops = format_flops(offer.get('total_flops'))
         price = format_price(offer.get('dph_total'))
         numeric_id = offer.get('id', 'N/A')
 
-        table.add_row([numeric_id, gpu_info, gpu_totalram, cpu_info, total_flops, price])
+        table.add_row([numeric_id, gpu_info, gpu_total_ram, cpu_info, total_flops, price])
 
     print(table)
 
