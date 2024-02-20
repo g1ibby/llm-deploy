@@ -8,7 +8,7 @@ from llm_deploy.llms_config import LLMsConfig
 from llm_deploy.model_allocator import ModelAllocator
 
 class AppLogic:
-    def __init__(self, vast_api_key):
+    def __init__(self, vast_api_key, litellm_api_url):
         """
         Initialize the AppLogic class with the VastAI API key.
         """
@@ -16,6 +16,7 @@ class AppLogic:
         self.vast = VastAI(vast_api_key)
         self.storage = StorageManager()
         self.llms_config = LLMsConfig()
+        self.litellm = LiteLLManager(litellm_api_url)
 
     def apply_llms_config(self):
         """
@@ -47,7 +48,7 @@ class AppLogic:
             machine = machines[machine_id]
             print(f"Machine ID: {machine_id}")
             print(f"Price (per hour): ${machine['dph_total']}")
-            print(f"GPU: {machine['gpu_name']} | Count: {machine['num_gpus']} | Memory: {machine['gpu_ram']} MB per GPU, Total: {machine['gpu_totalram']} MB")
+            print(f"GPU: {machine['gpu_name']} | Count: {machine['num_gpus']} | Memory: {machine['gpu_ram']} MB per GPU, Total: {machine['gpu_total_ram']} MB")
             print(f"Internet Speed: Up {machine['inet_up']} Mbps / Down {machine['inet_down']} Mbps")
             print("Allocated Models:")
             for model in models:
@@ -256,8 +257,7 @@ class AppLogic:
         # Pull a model and print updates
         model_pull_generator = ollama_instance.pull_model(model_name)
         print_pull_status(model_pull_generator)
-        litellm_instance = LiteLLManager()
-        litellm_instance.add_model(model_name, ollama_addr)
+        self.litellm.add_model(model_name, ollama_addr)
 
         return True
 
@@ -280,6 +280,7 @@ class AppLogic:
 
         # Create an instance of the OllamaInstance class
         ollama_instance = OllamaInstance(ollama_addr)
+        self.litellm.remove_model_by_id(model_name)
         # Remove a model and print updates
         return ollama_instance.remove_model(model_name)
 
@@ -334,12 +335,12 @@ class AppLogic:
         """
         instance = self.get_instance_by_id(instance_id)
 
-        litellm_instance = LiteLLManager()
-        litellm_instance.remove_all_models_by_api_base(instance['ollama_addr'])
         r = self.vast.destroy_instance(instance_id)
-        instances = self.vast.list_instances()
-        self.storage.sync_instances([inst['id'] for inst in instances])
-        print(r)
+        if r['success']:
+            instances = self.vast.list_instances()
+            self.storage.sync_instances([inst['id'] for inst in instances])
+            self.litellm.remove_all_models_by_api_base(instance['ollama_addr'])
+            print("Instance destroyed successfully.")
 
     def get_instance_logs(self, instance_id, max_logs=30):
         """

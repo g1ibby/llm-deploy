@@ -1,60 +1,49 @@
-import yaml
-import os
+import requests
 
 class LiteLLManager:
-    def __init__(self, config_file='config.yaml'):
-        self.config_file = config_file
-        self.config_data = {'model_list': []}
-        self._load_config()
+    def __init__(self, api_url="http://localhost:4000"):
+        self.api_url = api_url
 
-    def _load_config(self):
-        if os.path.exists(self.config_file):
-            with open(self.config_file, 'r') as file:
-                self.config_data = yaml.safe_load(file) or {'model_list': []}
-
-    def _save_config(self):
-        with open(self.config_file, 'w') as file:
-            yaml.dump(self.config_data, file, default_flow_style=False)
-
+    # Create new model in LiteLLM proxy server
+    # model_identifier: Identifier of the model withouth the "ollama/" prefix
+    # api_base: Base URL of the ollama API server
     def add_model(self, model_identifier, api_base):
-        base_model_name = model_identifier
-        full_model_name = base_model_name
-        count = 1
-
-        for model in self.config_data['model_list']:
-            print(model)
-            if model['model_name'].startswith(base_model_name):
-                if model['litellm_params']['api_base'] == api_base:
-                    # Model with same identifier and api_base exists, do nothing
-                    return
-                elif model['model_name'] == full_model_name:
-                    # Increment count for postfix if base model name matches
-                    count += 1
-                    full_model_name = f"{base_model_name}__{count}"
-
-        # Add the new model
-        new_model = {
-            'model_name': full_model_name,
-            'litellm_params': {
-                'model': f"ollama/{base_model_name}",
-                'api_base': api_base
+        response = requests.post(f"{self.api_url}/model/new", json={
+            "model_name": model_identifier,
+            "litellm_params": {
+                "model": f"ollama/{model_identifier}",
+                "api_base": api_base
+            },
+            "model_info": {
+                "id": model_identifier,
             }
-        }
-        self.config_data['model_list'].append(new_model)
-        self._save_config()
+        })
+        if response.status_code != 200:
+            raise Exception(f"Failed to add model: {response.text}")
 
+    # Get list of models in LiteLLM proxy server
+    # Returns a list of model names with the "ollama/" prefix
     def get_model_names(self):
-        return [model['model_name'] for model in self.config_data['model_list']]
+        response = requests.get(f"{self.api_url}/model/info")
+        models = response.json().get('data', [])
+        return [model['model_name'] for model in models]
 
-    def remove_model_by_name(self, model_name):
-        self.config_data['model_list'] = [model for model in self.config_data['model_list'] if model['model_name'] != model_name]
-        self._save_config()
-
-    def remove_model_by_identifier(self, model_identifier, api_base):
-        self.config_data['model_list'] = [model for model in self.config_data['model_list'] if not (model['litellm_params']['model'].endswith(model_identifier) and model['litellm_params']['api_base'] == api_base)]
-        self._save_config()
+    def remove_model_by_id(self, model_id):
+        response = requests.post(f"{self.api_url}/model/delete", json={"id": model_id})
+        if response.status_code != 200:
+            raise Exception(f"Failed to remove model: {response.text}")
 
     def remove_all_models_by_api_base(self, api_base):
-        self.config_data['model_list'] = [model for model in self.config_data['model_list'] if model['litellm_params']['api_base'] != api_base]
-        self._save_config()
-
+        response = requests.get(f"{self.api_url}/model/info")
+        if response.status_code == 200:
+            models = response.json().get('data', [])
+            for model in models:
+                litellm_params = model.get('litellm_params', {})
+                if 'api_base' in litellm_params and litellm_params['api_base'] == api_base:
+                    try:
+                        self.remove_model_by_id(model['model_info']['id'])
+                    except Exception as e:
+                        print(f"Failed to remove model {model['model_info']['id']}: {e}")
+                        continue
+        else:
+            raise Exception("Failed to fetch models for removal")
