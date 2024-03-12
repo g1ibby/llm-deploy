@@ -71,8 +71,10 @@ def retrieve_model_size(full_model_name):
         base_path = "library/" + full_model_name.split(':')[0]  # For models downloaded on the library
 
     url = f"https://ollama.ai/{base_path}/tags"
+    print(url)
     html_content = _download_html(url)
     model_list = _extract_models(html_content)
+    print(model_list)
     return _get_model_size(model_list, full_model_name)
 
 def _download_html(url):
@@ -86,10 +88,14 @@ def _download_html(url):
 def _extract_models(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     models = []
-
-    for div in soup.find_all("div", class_="flex-1 ext-sm font-medium text-gray-900"):
-        name = div.find("div", class_="break-all text-lg text-gray-900 group-hover:underline").text.strip()
-        size = div.find("div", class_="flex items-baseline space-x-1 text-sm font-normal text-neutral-500").span.text.split('•')[0].strip()
+    
+    for div in soup.find_all("div", class_="flex-1"):
+        name = div.find("div", class_="break-all font-medium text-gray-900 group-hover:underline").text.strip()
+        size_span = div.find("div", class_="flex items-baseline space-x-1 text-[13px] text-neutral-500").span
+        if size_span:
+            size = size_span.text.split('•')[1].strip()
+        else:
+            size = "N/A"
         models.append({'name': name, 'size': size})
     
     return models
