@@ -1,4 +1,4 @@
-from llm_deploy.ollama import retrieve_model_size
+from llm_deploy.llm_calculator import LLMCalculator
 
 PRIORITY_MAP = {
     'high': 2,
@@ -29,9 +29,6 @@ class ModelAllocator:
     - `update_available_space`: Updates the available GPU RAM of a machine after allocation.
     """
 
-    # Constant for additional RAM required per model (in GB)
-    MODEL_RAM_OVERHEAD = 1
-
     def __init__(self, vast, llms_config):
         self.allocations = {}  # Maps machine ID to list of allocated models
         self.available_space = {}  # Tracks available GPU RAM for each machine
@@ -49,12 +46,16 @@ class ModelAllocator:
         Returns:
             List[dict]: Sorted list of models with their properties.
         """
+        calc = LLMCalculator()
         models = self.llms_config.get_models()
         for model in models:
             model_name = model['model']
             print(f"Retrieving size for model: {model_name}")
-            model_size = retrieve_model_size(model_name)
-            model_size_mb = model_size * 1024  # Convert GB to MB
+            model_size, context_size, total_size = calc.calculate(model_name, 8192)
+            print(f"Model Size (GB): {model_size:.2f}")
+            print(f"Context Size (GB): {context_size:.2f}")
+            print(f"Total Size (GB): {total_size:.2f}")
+            model_size_mb = total_size * 1024  # Convert GB to MB
 
             model['size'] = model_size_mb
 
@@ -106,13 +107,13 @@ class ModelAllocator:
         self.update_available_space(machine_id, model)
 
     def can_allocate(self, model, available_ram, models_on_machine):
-        total_size_on_machine = sum(m['size'] + ModelAllocator.MODEL_RAM_OVERHEAD for m in models_on_machine)
-        new_total_size = total_size_on_machine + model['size'] + ModelAllocator.MODEL_RAM_OVERHEAD
+        total_size_on_machine = sum(m['size'] for m in models_on_machine)
+        new_total_size = total_size_on_machine + model['size']
 
         if model['priority'] == 'high':
             return new_total_size <= available_ram
         else:
-            return (model['size'] + ModelAllocator.MODEL_RAM_OVERHEAD) <= available_ram
+            return model['size'] <= available_ram
 
     def calculate_required_gpu_memory(self, model):
         if model['priority'] == 'high':
@@ -123,8 +124,8 @@ class ModelAllocator:
 
     def update_available_space(self, machine_id, model):
         if machine_id in self.available_space:
-            self.available_space[machine_id] -= (model['size'] + ModelAllocator.MODEL_RAM_OVERHEAD)
+            self.available_space[machine_id] -= model['size']
         else:
             # Use the cached gpu_total_ram for the new machine
-            self.available_space[machine_id] = self.gpu_ram_cache[machine_id] - (model['size'] + ModelAllocator.MODEL_RAM_OVERHEAD)
+            self.available_space[machine_id] = self.gpu_ram_cache[machine_id] - model['size']
 
