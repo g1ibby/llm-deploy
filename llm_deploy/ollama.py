@@ -1,6 +1,5 @@
 import requests
 import json
-from bs4 import BeautifulSoup
 from llm_deploy.interfaces import OllamaInstanceInterface
 
 class OllamaInstance(OllamaInstanceInterface):
