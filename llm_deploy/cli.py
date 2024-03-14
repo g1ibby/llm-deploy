@@ -1,9 +1,11 @@
 import typer
+from enum import Enum
+
 from llm_deploy.app_logic import AppLogic
 from llm_deploy.config import load_config
-from llm_deploy.ollama import retrieve_model_size
+from llm_deploy.llm_calculator import LLMCalculator
 from llm_deploy.utils import print_offer_table, print_instances_table, print_models
-from enum import Enum
+from llm_deploy.logging_config import setup_logging
 
 app = typer.Typer()
 model_app = typer.Typer()
@@ -38,7 +40,7 @@ def apply():
 
 @app.command(help="Destroys LLMs configuration based on state.json file")
 def destroy():
-    appl.destroy()
+    appl.instance.destroy_all()
 
 @app.command(help="Runs a model with specified parameters like GPU memory, disk space, and access type.")
 def run(model: str = typer.Argument(..., help="Model name"),
@@ -47,11 +49,16 @@ def run(model: str = typer.Argument(..., help="Model name"),
         access: ChoiceAccess = typer.Option(ChoiceAccess.IP, help="Choose either Cloudflared or IP access")):
     print("Running the model with the following parameters:")
     if gpu_memory == 0.0:
-        model_size = retrieve_model_size(model)
-        if model_size is None:
-            print("Failed to retrieve model size.")
+        try:
+            calculator = LLMCalculator()
+            _, _, model_size = calculator.calculate(model)
+            if model_size is None:
+                print("Failed to retrieve model size.")
+                return
+            gpu_memory = model_size
+        except Exception as e:
+            print(f"Failed to retrieve model size due to an error: {e}")
             return
-        gpu_memory = model_size
     typer.echo(f"Running the model: {model} with {gpu_memory} GB of GPU memory. Disk space: {disk} GB. Access: {access}")
 
     chosen_offer = select_offer(gpu_memory=gpu_memory, disk_space=disk, public_ip=access == ChoiceAccess.IP)
@@ -66,12 +73,12 @@ def run(model: str = typer.Argument(..., help="Model name"),
 
 @app.command(help="Lists all current instances.")
 def ls():
-    instances = appl.instances()
+    instances = appl.instance.instances()
     print_instances_table(instances)
 
 @app.command(help="Removes an instance by the given ID.")
 def rm(id: int = typer.Argument(..., help="Instance ID")):
-    chosen_instance = appl.get_instance_by_id(id)
+    chosen_instance = appl.instance.get_instance_by_id(id)
     if chosen_instance:
         print("You have chosen the following instance:")
         print_instances_table([chosen_instance])
@@ -79,11 +86,11 @@ def rm(id: int = typer.Argument(..., help="Instance ID")):
         print("No instance found with the specified ID.")
         return
 
-    appl.destroy_instance(chosen_instance['id'])
+    appl.instance.destroy_instance(chosen_instance['id'])
 
 @app.command(help="Shows details of an instance by the given ID.")
 def show(id: int = typer.Argument(..., help="Instance ID")):
-    chosen_instance = appl.get_instance_by_id(id)
+    chosen_instance = appl.instance.get_instance_by_id(id)
     if chosen_instance:
         print_instances_table([chosen_instance])
     else:
@@ -107,7 +114,7 @@ def show(id: int = typer.Argument(..., help="Instance ID")):
 
 @app.command(help="Retrieves and displays logs for a specified instance ID.")
 def logs(id: int = typer.Argument(..., help="Instance ID"), max_logs: int = typer.Option(30, help="Maximum number of logs to retrieve")):
-    instance_logs = appl.get_instance_logs(id, max_logs=max_logs)
+    instance_logs = appl.instance.get_instance_logs(id, max_logs=max_logs)
     if not instance_logs:
         print("Failed to retrieve logs.")
         return
@@ -117,21 +124,22 @@ def logs(id: int = typer.Argument(..., help="Instance ID"), max_logs: int = type
 @model_app.command(help="Pulls a specified model to a given instance ID.")
 def pull(model_name: str = typer.Argument(..., help="Model name"),
          instance_id: int = typer.Argument(..., help="Instance ID")):
-    appl.pull_model(model_name, instance_id)
+    appl.model.model(model_name, instance_id)
 
 @model_app.command(name="rm", help="Removes a specified model from a given instance ID.")
 def rm_model(model_name: str = typer.Argument(..., help="Model name"),
              instance_id: int = typer.Argument(..., help="Instance ID")):
-    appl.remove_model(model_name, instance_id)
+    appl.model.model(model_name, instance_id)
 
 @model_app.command(name="ls", help="Lists all models on all instances.")
 def ls_models():
-    models = appl.models()
+    models = appl.model.models()
     print_models(models)
 
 
 app.add_typer(model_app, name="model", help="Manages model operations like pulling, listing, and removing models.")
 
 def main():
+    setup_logging()
     app()
 
