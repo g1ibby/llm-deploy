@@ -2,7 +2,6 @@ import requests
 import math
 import json
 
-
 class LLMCalculator:
     def __init__(self):
         self.gguf_quants = {
