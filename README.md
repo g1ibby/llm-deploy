@@ -20,6 +20,11 @@ models:
     model: "phi:2.7b-chat-v2-q5_K_M"
     priority: low
 ```
+
+Copy file `env.sh.dist` to `env.sh` and set your keys there. 
+
+Run `source env.sh` 
+
 ### Usage
 
 #### Config-Mode Commands:
