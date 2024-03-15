@@ -1,23 +1,31 @@
 import typer
-from enum import Enum
+from enum import Enum, auto
+from pathlib import Path
 
 from llm_deploy.app_logic import AppLogic
 from llm_deploy.config import load_config
-from llm_deploy.llm_calculator import LLMCalculator
 from llm_deploy.utils import print_offer_table, print_instances_table, print_models
 from llm_deploy.logging_config import setup_logging
 
+class OperationMode(Enum):
+    CONFIG_MODE = auto()
+    MANUAL_MODE = auto()
+
 app = typer.Typer()
-model_app = typer.Typer()
+
+# Define subcommand groups
+infra_app = typer.Typer(help="Commands for managing infrastructure.")
+models_app = typer.Typer(help="Commands for managing models.")
+
+# Add subcommand groups to the main app
+app.add_typer(infra_app, name="infra")
+app.add_typer(models_app, name="model")
 
 config = load_config()
-
-# Initialize the business logic with necessary services
 appl = AppLogic(config['VAST_API_KEY'], config['LITELLM_API_URL'])
 
-class ChoiceAccess(str, Enum):
-    CF = "cf"
-    IP = "ip"
+CONFIG_MODE_FILE = "llms.yaml"
+is_config_mode = Path(CONFIG_MODE_FILE).exists()
 
 def select_offer(gpu_memory: float, disk_space: float, public_ip: bool = True):
     offers = appl.get_offers(gpu_memory, disk_space, public_ip)
@@ -27,119 +35,104 @@ def select_offer(gpu_memory: float, disk_space: float, public_ip: bool = True):
     chosen_offer = next((offer for offer in offers if offer['id'] == chosen_id), None)
 
     if not chosen_offer:
-        print("No offer found with the specified ID.")
+        typer.echo("No offer found with the specified ID.")
         return None
 
-    print("You have chosen the following offer:")
+    typer.echo("You have chosen the following offer:")
     print_offer_table([chosen_offer])
     return chosen_offer
 
-@app.command(help="Applies LLMs configuration based on llms.yaml file")
+def ensure_mode_is(expected_mode: OperationMode):
+    current_mode = OperationMode.CONFIG_MODE if is_config_mode else OperationMode.MANUAL_MODE
+
+    if current_mode != expected_mode:
+        mode_str = 'config-mode' if expected_mode == OperationMode.CONFIG_MODE else 'manual-mode'
+        raise typer.Exit(f"This command is only available in {mode_str}.")
+
+@app.command(help="Applies configuration from llms.yaml. Available in Mode 1.")
 def apply():
+    ensure_mode_is(OperationMode.CONFIG_MODE)
+    typer.echo("Applying llms.yaml configurations...")
     appl.apply_llms_config()
 
-@app.command(help="Destroys LLMs configuration based on state.json file")
+@app.command(help="Destroys infrastructure based on current state. Available in Mode 1.")
 def destroy():
+    ensure_mode_is(OperationMode.CONFIG_MODE)
+    typer.echo("Destroying infrastructure and models...")
     appl.instance.destroy_all()
 
-@app.command(help="Runs a model with specified parameters like GPU memory, disk space, and access type.")
-def run(model: str = typer.Argument(..., help="Model name"),
-        gpu_memory: float = typer.Option(0.0, "--gpu-memory", help="GPU memory in GB"),
-        disk: float = typer.Option(70.0, "--disk", help="Disk space in GB"),
-        access: ChoiceAccess = typer.Option(ChoiceAccess.IP, help="Choose either Cloudflared or IP access")):
-    print("Running the model with the following parameters:")
-    if gpu_memory == 0.0:
-        try:
-            calculator = LLMCalculator()
-            _, _, model_size = calculator.calculate(model)
-            if model_size is None:
-                print("Failed to retrieve model size.")
-                return
-            gpu_memory = model_size
-        except Exception as e:
-            print(f"Failed to retrieve model size due to an error: {e}")
-            return
-    typer.echo(f"Running the model: {model} with {gpu_memory} GB of GPU memory. Disk space: {disk} GB. Access: {access}")
+@infra_app.command(name="ls", help="Lists all machines.")
+def infra_ls():
+    print_instances_table(appl.instance.instances())
 
-    chosen_offer = select_offer(gpu_memory=gpu_memory, disk_space=disk, public_ip=access == ChoiceAccess.IP)
-    if not chosen_offer:
-        return
-
-    result = appl.run_model(model, chosen_offer['id'], disk_space=disk, public_ip=access == ChoiceAccess.IP)
-    if result:
-        print("Model run successfully.")
-    else:
-        print("Failed to run model.")
-
-@app.command(help="Lists all current instances.")
-def ls():
-    instances = appl.instance.instances()
-    print_instances_table(instances)
-
-@app.command(help="Removes an instance by the given ID.")
-def rm(id: int = typer.Argument(..., help="Instance ID")):
-    chosen_instance = appl.instance.get_instance_by_id(id)
+@infra_app.command(name="inspect", help="Shows details for a specified machine.")
+def infra_inspect(machine_id: int):
+    chosen_instance = appl.instance.get_instance_by_id(machine_id)
     if chosen_instance:
-        print("You have chosen the following instance:")
         print_instances_table([chosen_instance])
     else:
-        print("No instance found with the specified ID.")
+        typer.echo("No instance found with the specified ID.")
+
+@infra_app.command(name="create", help="Manually creates a new machine. Available in Mode 2.")
+def infra_create(
+        gpu_memory: float = typer.Option(0.0, "--gpu-memory", help="GPU memory in GB"),
+        disk: float = typer.Option(70.0, "--disk", help="Disk space in GB")):
+    ensure_mode_is(OperationMode.MANUAL_MODE)
+    chosen_offer = select_offer(gpu_memory, disk, True)
+    if not chosen_offer:
+        typer.echo("Machine creation cancelled. No offer chosen.")
+        return
+
+    typer.echo(f"Creating a machine with: GPU Memory: {gpu_memory} GB, Disk space: {disk} GB")
+    try:
+        # Assuming `create_instance` has been updated to accept offer_id instead of gpu_memory directly
+        appl.instance.create_instance(chosen_offer['id'], disk, True)
+        typer.echo("Machine created successfully.")
+    except Exception as e:
+        typer.echo(f"Failed to create machine due to an error: {e}")
+
+@infra_app.command(name="destroy", help="Destroys a specified machine. Available in Mode 2.")
+def infra_destroy(machine_id: int):
+    ensure_mode_is(OperationMode.MANUAL_MODE)
+    typer.echo(f"Destroying machine {machine_id}...")
+    chosen_instance = appl.instance.get_instance_by_id(id)
+    if chosen_instance:
+        typer.echo("You have chosen the following instance:")
+        print_instances_table([chosen_instance])
+    else:
+        typer.echo("No instance found with the specified ID.")
         return
 
     appl.instance.destroy_instance(chosen_instance['id'])
 
-@app.command(help="Shows details of an instance by the given ID.")
-def show(id: int = typer.Argument(..., help="Instance ID")):
-    chosen_instance = appl.instance.get_instance_by_id(id)
-    if chosen_instance:
-        print_instances_table([chosen_instance])
+@models_app.command(name="deploy", help="Deploys a model to a specified machine. Available in Mode 2.")
+def model_deploy(model_name: str, machine_id: int):
+    ensure_mode_is(OperationMode.MANUAL_MODE)
+    typer.echo(f"Deploying model {model_name} to machine {machine_id}...")
+    appl.model.model(model_name, machine_id)
+
+@models_app.command(name="remove", help="Removes a model from a specified machine. Available in Mode 2.")
+def model_remove(model_name: str, machine_id: int):
+    ensure_mode_is(OperationMode.MANUAL_MODE)
+    typer.echo(f"Removing model {model_name} from machine {machine_id}...")
+    appl.model.remove_model(model_name, machine_id)
+
+@models_app.command(name="ls", help="Lists models across machines, or for a specific machine.")
+def model_ls():
+    print_models(appl.model.models())
+
+@app.command(help="Retrieves and displays logs for a specified machine.")
+def logs(machine_id: int, max_logs: int = typer.Option(30)):
+    instance_logs = appl.instance.get_instance_logs(machine_id, max_logs=max_logs)
+    if instance_logs:
+        for log in instance_logs:
+            print(log)
     else:
-        print("No instance found with the specified ID.")
-        return
-    # Print ollama cloudflared address
-    ollama_addr = chosen_instance.get('ollama_addr')
-    print(f"Ollama Address: {ollama_addr}")
-    # Print models
-    models = chosen_instance.get('models')
-    if models:
-        print("Models on this instance:")
-        for model in models:
-            name = model.get('name')
-            size_in_bytes = model.get('size')
-            if size_in_bytes is not None:
-                size_in_gb = size_in_bytes / 1e9  # Convert bytes to gigabytes
-                print(f"{name}, Size: {size_in_gb:.2f} GB")
-            else:
-                print(f"{name}, Size: Unknown")
-
-@app.command(help="Retrieves and displays logs for a specified instance ID.")
-def logs(id: int = typer.Argument(..., help="Instance ID"), max_logs: int = typer.Option(30, help="Maximum number of logs to retrieve")):
-    instance_logs = appl.instance.get_instance_logs(id, max_logs=max_logs)
-    if not instance_logs:
-        print("Failed to retrieve logs.")
-        return
-    for log in instance_logs:
-        print(log)
-
-@model_app.command(help="Pulls a specified model to a given instance ID.")
-def pull(model_name: str = typer.Argument(..., help="Model name"),
-         instance_id: int = typer.Argument(..., help="Instance ID")):
-    appl.model.model(model_name, instance_id)
-
-@model_app.command(name="rm", help="Removes a specified model from a given instance ID.")
-def rm_model(model_name: str = typer.Argument(..., help="Model name"),
-             instance_id: int = typer.Argument(..., help="Instance ID")):
-    appl.model.model(model_name, instance_id)
-
-@model_app.command(name="ls", help="Lists all models on all instances.")
-def ls_models():
-    models = appl.model.models()
-    print_models(models)
-
-
-app.add_typer(model_app, name="model", help="Manages model operations like pulling, listing, and removing models.")
+        typer.echo("Failed to retrieve logs.")
 
 def main():
     setup_logging()
     app()
 
+if __name__ == "__main__":
+    main()
