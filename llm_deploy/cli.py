@@ -86,7 +86,7 @@ def infra_create(
     typer.echo(f"Creating a machine with: GPU Memory: {gpu_memory} GB, Disk space: {disk} GB")
     try:
         # Assuming `create_instance` has been updated to accept offer_id instead of gpu_memory directly
-        appl.instance.create_instance(chosen_offer['id'], disk, True)
+        appl.instance.create(chosen_offer['id'], disk, True)
         typer.echo("Machine created successfully.")
     except Exception as e:
         typer.echo(f"Failed to create machine due to an error: {e}")
@@ -109,7 +109,7 @@ def infra_destroy(machine_id: int):
 def model_deploy(model_name: str, machine_id: int):
     ensure_mode_is(OperationMode.MANUAL_MODE)
     typer.echo(f"Deploying model {model_name} to machine {machine_id}...")
-    appl.model.model(model_name, machine_id)
+    appl.model.pull(model_name, machine_id)
 
 @models_app.command(name="remove", help="Removes a model from a specified machine. Available in Mode 2.")
 def model_remove(model_name: str, machine_id: int):
